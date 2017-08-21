@@ -1,4 +1,3 @@
-#
 # FILE: 	NERD.py
 #
 # TITLE:	NetApp Environment Review Document (NERD)
@@ -337,10 +336,10 @@ for row in overview_sheet.iter_rows(min_row=2):
 for col in overview_sheet.iter_cols(min_row=3, max_col=1):
 	for cell in col:
 		cell.border = Border(left = Side(style = 'thick'))
-for col in overview_sheet.iter_cols(min_col=4):
+for col in overview_sheet.iter_cols(min_col=4, max_col=4):
 	for cell in col:
 		cell.border = Border(left = Side(style = 'thick'))
-for row in overview_sheet.iter_rows(min_row=7, max_row=7):
+for row in overview_sheet.iter_rows(min_row=7, max_row=7, max_col=3):
 	for cell in row:
 		cell.border = Border(top = Side(style = 'thick'))
 

@@ -1,15 +1,15 @@
-# FILE: 	NERD.py
+# FILE: 	NERD_Modeler.py
 #
-# TITLE:	NetApp Environment Review Document (NERD)
+# PROGRAM:	NetApp Environment Review Document (NERD)
 #
 # AUTHOR: 	Kellen Bryan
 #
-# SuMMARY: 	NERD mines relevant information from ASUP about client storage environments
+# SUMMARY: 	NERD mines relevant information from ASUP about client storage environments
 # 			and organizes the data in a user-friendly worksheet.
 #
 # USAGE:	NERD provides the NetApp Sales Team with organized metrics to proactively 
 # 			make recommendations on improvements to better serve the customer and also 
-# 			faciliates education clients on the overall performance of their storage environment
+# 			faciliates education clients on the overall performance of their storage environment.
 #
 # Copyright (c) 2017 Network Appliance, Inc.
 # All rights reserved.  

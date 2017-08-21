@@ -1,16 +1,13 @@
-#! /usr/bin/python
-
+# FILE: 	NERD.py
+#
+# PROGRAM:	NetApp Environment Review Document (NERD)
+# 
+# AUTHOR: Kellen Bryan
+#  
+# SUMMARY: NERD class for NERD_modeler.py
 #
 # Copyright (c) 2017 Network Appliance, Inc.
 # All rights reserved.
-#
-# author: chelseac, Arjun Desai, Kellen Bryan
-#
-# Usage:
-#  
-#
-# Summary:
-#    
 
 ########## MODULE IMPORT ############################################## 
 

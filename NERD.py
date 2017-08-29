@@ -16,6 +16,7 @@ import fileinput, sys, re, codecs
 import argparse 
 import os.path
 import requests
+import statistics
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import PatternFill, Font, Fill, Alignment, Border, Side
 from openpyxl.worksheet.properties import WorksheetProperties, PageSetupProperties
@@ -176,6 +177,60 @@ class NERD():
 		match = re.search("site_name>(.*?)<", line)
 		if match:
 			return str(match.group(1))
+
+	def _performance_iops(self, asup_url_output):
+		"""Returns iops and cpu busy % (std_dev + avg) for previous week"""
+		line = asup_url_output
+		fcp_ops_match = re.findall("fcp_ops.*?<counterValue>(.*?)</counterValue>", line, re.DOTALL)
+		iscsi_ops_match = re.findall("iscsi_ops.*?<counterValue>(.*?)</counterValue>", line, re.DOTALL)
+		cifs_ops_match = re.findall("cifs_ops.*?<counterValue>(.*?)</counterValue>", line, re.DOTALL)
+		nfs_ops_match = re.findall("nfs_ops.*?<counterValue>(.*?)</counterValue>", line, re.DOTALL)
+		cpu_busy_match = re.findall("cpu_busy.*?<counterValue>(.*?)</counterValue>", line, re.DOTALL)
+
+		if fcp_ops_match or iscsi_ops_match or cifs_ops_match or nfs_ops_match or cpu_busy_match:
+
+			fcp_ops 	= []
+			iscsi_ops 	= []
+			cifs_ops 	= []
+			nfs_ops 	= []
+			cpu_busy 	= []
+
+			length = len(fcp_ops_match)
+			
+			for i in range(0, length):
+				fcp_ops.append(float(fcp_ops_match[i]))
+				iscsi_ops.append(float(iscsi_ops_match[i]))		
+				cifs_ops.append(float(cifs_ops_match[i]))		
+				nfs_ops.append(float(nfs_ops_match[i]))		
+				cpu_busy.append(float(cpu_busy_match[i]))		
+
+			#calculate averages and std dev over last week
+			fcp_avg 		= sum(fcp_ops)/length
+			fcp_std_dev 	= statistics.stdev(fcp_ops)
+
+			iscsi_avg 		= sum(iscsi_ops)/length
+			iscsi_std_dev 	= statistics.stdev(iscsi_ops)
+
+			cifs_avg 		= sum(cifs_ops)/length
+			cifs_std_dev 	= statistics.stdev(cifs_ops)
+
+			nfs_avg		 	= sum(nfs_ops)/length
+			nfs_std_dev 	= statistics.stdev(nfs_ops)
+
+			cpu_avg 		= sum(cpu_busy)/length
+			cpu_std_dev 	= statistics.stdev(cpu_busy)
+
+			return_list = []
+			return_list.append(round( (cpu_avg+cpu_std_dev), 2))
+			return_list.append(round( (cifs_avg+cifs_std_dev), 2))
+			return_list.append(round( (fcp_avg+fcp_std_dev), 2))
+			return_list.append(round( (iscsi_avg+iscsi_std_dev), 2))
+			return_list.append(round( (nfs_avg+nfs_std_dev), 2))
+			
+			return return_list
+
+		no_match_list = ['No Data Available', 'No Data Available', 'No Data Available', 'No Data Available', 'No Data Available']
+		return no_match_list
 
 	def _raid_group_count(self, asup_url_output):
 		"""Returns RAID group set-up"""

@@ -116,7 +116,6 @@ def _performance_sheet_column_headers_2():
 	performance_sheet_column_headers_2.append("iSCI (IOPs)")
 	performance_sheet_column_headers_2.append("NFS (IOPs)")
 	performance_sheet_column_headers_2.append("Latency (ms)")
-	performance_sheet_column_headers_2.append("Volume Name")
 
 	return performance_sheet_column_headers_2
 
@@ -144,7 +143,9 @@ if args.file_path:
 	print "Reading from file.."
 	with open(args.file_path, 'r') as f:
 		for line in f:
-			serial_numbers_list.append(line.strip())
+			serial_num = line.strip()
+			if serial_num not in serial_numbers_list and serial_num != '':
+				serial_numbers_list.append(serial_num)
 	for num in serial_numbers_list:
 		print num
 
@@ -183,7 +184,9 @@ performance_dictionary 			= {}
 no_cluster_count = 0
 
 #Get data from REST APIs
-for serial_number in serial_numbers_list:	
+for serial_number in serial_numbers_list:
+
+	#API url with general overview info of storage environment
 	asup_sysconfigR_url 		= "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/sys_serial_no/" + str(serial_number) + "/section_view/SYSCONFIG-R"
 	asup_sysconfigR_url_output 	= requests.get(asup_sysconfigR_url).text
 	current_page 				= NERD(asup_sysconfigR_url_output)
@@ -201,13 +204,21 @@ for serial_number in serial_numbers_list:
 	raid_group_count 	= current_page._raid_group_count(asup_sysconfigR_url_output)
 	disk_count 			= current_page._disk_count(asup_sysconfigR_url_output)
 	disk_type_count 	= current_page._disk_type_count(asup_sysconfigR_url_output)
-	#aggr_util 			= current_page._aggr_util(asup_url_output)
 
-	request_flag = 0
 
+	#API url to get IOP info
+	asup_iops_url = "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/sys_serial_no/" + str(serial_number) + "/object/system/counter_name/cifs_ops,nfs_ops,fcp_ops,iscsi_ops,cpu_busy/cvc"
+	asup_iops_url_output = requests.get(asup_iops_url).text
+
+	current_page = NERD(asup_iops_url_output)
+	performance_iops = current_page._performance_iops(asup_iops_url_output)
+
+
+	#API url with aggregate and raid info 
 	asup_aggregate_info_url = "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/asup_id/" + str(asup_id) + "/object_view/AGGREGATE"
 	asup_aggregate_info_url_output = requests.get(asup_aggregate_info_url).text
-
+	
+	request_flag = 0
 	while request_flag != 1:
 		error_match = re.search("(Error)", asup_aggregate_info_url_output)
 		if error_match:
@@ -217,7 +228,6 @@ for serial_number in serial_numbers_list:
 			request_flag = 1
 	print "SERIAL NUM: " + str(serial_number)
 	
-	#print asup_aggregate_info_url_output
 	current_page = NERD(asup_aggregate_info_url_output)
 
 	aggr_capacity = current_page._aggr_capacity(asup_aggregate_info_url_output)
@@ -257,9 +267,10 @@ for serial_number in serial_numbers_list:
 		cluster_dictionary[cluster_name][host_name].append([system_model, serial_number, os_version, name, type_raid, raid_layout, disks, aggr_cap, aggr_util_percent])
 		capacity_trending_dictionary[cluster_name][host_name].append([system_model, serial_number, name])
 
-	performance_dictionary[cluster_name][host_name].append([system_model, serial_number])
+	performance_dictionary[cluster_name][host_name].append(system_model)
+	performance_dictionary[cluster_name][host_name].append(serial_number)
+	performance_dictionary[cluster_name][host_name].extend(performance_iops)
 	location_dictionary[location][cluster_name].append([host_name, system_model, serial_number, os_version])
-
 
 
 #################### DOCUMENT OVERVIEW SHEET #################### 
@@ -781,28 +792,26 @@ for cluster in cluster_list:
 		if host_name != None:
 			host_name_list.append(host_name)
 	host_name_list.sort()
-	
+	all_info = []
+
 	#Alphabetize by Host Name
 	for host_name in host_name_list:
 
 		row_info_list = []
 		for row_info in performance_dictionary[cluster][host_name]:
 			row_info_list.append(row_info)
-		row_info_list.sort()
-
-		#Populate spreadsheet
-		all_info = []
-		for row in row_info_list:
-			all_info.append(cluster)
-			all_info.append(host_name)
-			for item in row:
-				all_info.append(item)
-			sheet4.append(all_info)
-			all_info = []
-	 
 		
+		#Populate spreadsheet
+		all_info.append(cluster)
+		all_info.append(host_name)
+		for item in row_info_list:
+			all_info.append(item)
+
+		sheet4.append(all_info)
+		all_info = []
+	 
 		#alternate colors for each cluster (white/blue)
-		for row in sheet4.iter_rows(min_row=3, max_col=11):
+		for row in sheet4.iter_rows(min_row=3, max_col=10):
 			if row[0].value == cluster:
 				for cell in row:
 					if color_flag == 1:
@@ -821,7 +830,7 @@ for cluster in cluster_list:
 				cluster_row_count += 1	
 
 	#apply borders as per cluster 
-	for row in sheet4.iter_rows(min_row=3, max_col=11):
+	for row in sheet4.iter_rows(min_row=3, max_col=10):
 		if row[0].value == cluster and cluster_flag < cluster_row_count:	
 			for cell in row:
 				if row.index(cell)<(len(row)-1):
@@ -856,7 +865,7 @@ for cluster in cluster_list:
 						bottom	= Side(style='thick'))
 
 #Format header rows
-for row in sheet4.iter_rows(min_row=1, max_row=2, max_col = 11):
+for row in sheet4.iter_rows(min_row=1, max_row=2, max_col = 10):
 	for cell in row:
 		cell.fill 		= PatternFill(start_color="000080", fill_type="solid")
 		cell.font 		= Font(bold=True, color="ffffff")
@@ -878,6 +887,12 @@ for row in sheet4.iter_rows(max_row = 1):
 			dimensions[cell.column] = max((dimensions.get(cell.column, 0), len(str(cell.value))+8))
 for col, value in dimensions.items():
 	sheet4.column_dimensions[col].width = value
+
+for col in sheet4.iter_cols(min_col=5, max_col=5, min_row=3):
+	for cell in col:
+		if cell.value != "No Data":
+			if cell.value >= 80:
+				cell.font = Font(bold=True, color="ff0000")
 
 #freeze top row
 sheet4.freeze_panes='A3'

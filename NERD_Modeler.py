@@ -139,6 +139,8 @@ def _volumes_sheet_column_headers():
 parser = argparse.ArgumentParser(description='Serial Number Input')
 parser.add_argument('-serial-numbers', help='Enter serial numbers seperated by commas (no spaces)')
 parser.add_argument('-file-path', help='Enter file path')
+parser.add_argument('-weeks', help='Enter number of weeks back to draw information (default = 1)')
+parser.add_argument('-volumes', help="'y' or 'n' add volume info (adds ~10 seconds per serial num) Default ='y'")
 args = parser.parse_args()
 
 serial_numbers_list = [] 
@@ -149,6 +151,7 @@ serial_numbers_list = []
 
 #Given file
 if args.file_path:
+
 	#check to make sure file path exists
 	if not os.path.exists(args.file_path):
 		parser.error("The file %s does not exist" % args.file_path)
@@ -180,6 +183,21 @@ else:
 	for num in serial_numbers_list:
 		print num
 
+#check 
+today = date.today()
+if args.weeks:
+	start_date = today - timedelta(weeks=int(args.weeks))
+else:
+	start_date = today - timedelta(weeks=12)
+print " ----- ASUP INFO GATHERED FROM: " + str(start_date) + " - " + str(today) + " -----"
+
+volumes_info_active = True
+if args.volumes:
+	if args.volumes == 'y' or args.volumes == 'Y':
+		volumes_info_active = True
+	elif args.volumes == 'n' or args.volumes == 'N':
+		volumes_info_active = False
+
 
 
 #################### CREATE EXCEL DOC ####################
@@ -199,10 +217,8 @@ performance_dictionary 			= {}
 volumes_dictionary 				= {}
 
 no_cluster_count = 0
-today = date.today()
-start_date = today - timedelta(weeks=12)
-print "START DATE: "
-print start_date
+
+
 
 #Get data from REST APIs
 for serial_number in serial_numbers_list:
@@ -226,15 +242,36 @@ for serial_number in serial_numbers_list:
 	serial_number 		= current_page._serial_number(asup_overview_url_output)
 	warranty_status 	= current_page._warranty_status(asup_overview_url_output)
 
+	if system_model == None or location == None:
+		print "---- WARNING: No ASUP information for SN# " + str(serial_number) + " ----"
+		print "Exiting program. Remove and run again."
+		sys.exit()
+
 	#API url with storage environment configuration info (SYSCONFIG-R)
 	asup_sysconfigR_url 		= "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/sys_serial_no/" + str(serial_number) + "/section_view/SYSCONFIG-R"
 	asup_sysconfigR_url_output 	= requests.get(asup_sysconfigR_url).text
 	current_page 				= NERD(asup_sysconfigR_url_output)
 	
 	aggr_name 			= current_page._aggr_name(asup_sysconfigR_url_output)
-	raid_group_count 	= current_page._raid_group_count(asup_sysconfigR_url_output)
 	disk_count 			= current_page._disk_count(asup_sysconfigR_url_output)
 	disk_type_count 	= current_page._disk_type_count(asup_sysconfigR_url_output)
+	raid_group_count 	= current_page._raid_group_count(asup_sysconfigR_url_output)
+
+
+	#API url with growth rate info for past 24 weeks (DF-A)
+	asup_DFA_url 		= "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/sys_serial_no/" + str(serial_number) + "/start_date/" + str(start_date) + "/end_date/" + str(today) + "/section_view/DF-A"
+	asup_DFA_url_output = requests.get(asup_DFA_url).text
+	current_page 		= NERD(asup_DFA_url_output)
+
+	capacity_forecast 	= current_page._capacity_forecast(asup_DFA_url_output)
+	growth_tb_monthly 	= current_page._growth_tb_monthly(asup_DFA_url_output)
+	growth_rate_monthly = current_page._growth_rate_monthly(asup_DFA_url_output)
+
+	if capacity_forecast == None or growth_rate_monthly == None or growth_tb_monthly == None:
+		print "---- WARNING: No ASUP report recieved during specified time span. See ASUP to find last report and increase 'weeks' argument ----"
+		print "Exiting program"
+		sys.exit() 
+
 
 	#API url to get system IOP info
 	asup_iops_url 			= "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/sys_serial_no/" + str(serial_number) + "/object/system/counter_name/cifs_ops,nfs_ops,fcp_ops,iscsi_ops,cpu_busy/cvc"
@@ -243,22 +280,7 @@ for serial_number in serial_numbers_list:
 
 	performance_iops 		= current_page._performance_iops(asup_iops_url_output)
 
-	#API url to get volume IOPS
-	asup_volume_iops_url = "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/system_id/" + str(system_id) + "/sys_serial_no/" + str(serial_number) + "/start_date/" + str(start_date) + "/end_date/" + str(today) + "/object/volume/counter_name/total_ops/stat/mean/csc/"
-	asup_volume_iops_url_output = requests.get(asup_volume_iops_url).text
-	current_page = NERD(asup_volume_iops_url_output)
-
-	volume_iops = current_page._volume_iops(asup_volume_iops_url_output)
-
-	#API url with growth rate info for past 24 weeks (DF-A)
-	asup_DFA_url 		= "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/sys_serial_no/" + str(serial_number) + "/start_date/" + str(start_date) + "/end_date/" + str(today) + "/section_view/DF-A"
-	asup_DFA_url_output = requests.get(asup_DFA_url).text
-	current_page 		= NERD(asup_DFA_url_output)
-
-	growth_tb_monthly 	= current_page._growth_tb_monthly(asup_DFA_url_output)
-	growth_rate_monthly = current_page._growth_rate_monthly(asup_DFA_url_output)
-	capacity_forecast 	= current_page._capacity_forecast(asup_DFA_url_output)
-
+	
 	#API url with aggregate and raid info 
 	asup_aggregate_info_url 		= "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/asup_id/" + str(asup_id) + "/object_view/AGGREGATE"
 	asup_aggregate_info_url_output 	= requests.get(asup_aggregate_info_url).text
@@ -270,10 +292,11 @@ for serial_number in serial_numbers_list:
 	while request_flag != 1:
 		error_match = re.search("(Error)", asup_aggregate_info_url_output)
 		if error_match:
-			if try_count > 10:
-				print "Server not responding for serial number: " + str(serial_number)
-				print "Exiting program...Please try again"
+			if try_count > 20:
+				print "---- WARNING: Server not responding for serial number: " + str(serial_number) + " ----"
+				print "Exiting program. Check ASUP and remove SN# " + str(serial_number) + ". Then run again."
 				sys.exit()
+				
 			try_count += 1
 			asup_aggregate_info_url_output = requests.get(asup_aggregate_info_url).text
 		else:
@@ -283,6 +306,14 @@ for serial_number in serial_numbers_list:
 	aggr_util = current_page._aggr_util(asup_aggregate_info_url_output)
 	raid_type = current_page._raid_type(asup_aggregate_info_url_output)
 
+	
+	#API url to get volume IOPS
+	if volumes_info_active == True:
+		asup_volume_iops_url = "http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/system_id/" + str(system_id) + "/sys_serial_no/" + str(serial_number) + "/start_date/" + str(start_date) + "/end_date/" + str(today) + "/object/volume/counter_name/total_ops/stat/mean/csc/"
+		asup_volume_iops_url_output = requests.get(asup_volume_iops_url).text
+		current_page = NERD(asup_volume_iops_url_output)
+
+		volume_iops = current_page._volume_iops(asup_volume_iops_url_output)
 
 	#Fill dictionaries
 	if location not in location_dictionary:
@@ -319,10 +350,11 @@ for serial_number in serial_numbers_list:
 		cluster_dictionary[cluster_name][host_name].append([system_model, serial_number, os_version, name, type_raid, raid_layout, disks, aggr_cap, aggr_util_percent])
 		capacity_trending_dictionary[cluster_name][host_name].append([system_model, serial_number, name, growth_tb, growth_rate, capacity])
 
-	for name in volume_iops:
-		iops = volume_iops[name]
+	if volumes_info_active == True:
+		for name in volume_iops:
+			iops = volume_iops[name]
 
-		volumes_dictionary[cluster_name][host_name].append([system_model, serial_number, name, iops])
+			volumes_dictionary[cluster_name][host_name].append([system_model, serial_number, name, iops])
 
 	performance_dictionary[cluster_name][host_name].append(system_model)
 	performance_dictionary[cluster_name][host_name].append(serial_number)
@@ -398,10 +430,10 @@ for row in overview_sheet.iter_rows(min_row=1, max_row=2, max_col = 3):
 			bottom		= Side(style 	= 'thin',
 								color 	= "ffffff"))
 
+#Applying borders for table
 for row in overview_sheet.iter_rows(min_row=2):
 	for cell in row:
 		cell.alignment = Alignment(vertical='center', horizontal='center', wrap_text=True)
-
 for col in overview_sheet.iter_cols(min_row=3, max_col=1):
 	for cell in col:
 		cell.border = Border(left = Side(style = 'thick'))
@@ -548,7 +580,6 @@ for col in sheet.iter_cols(min_row=1, max_row=1, max_col = 8):
 
 #check warranty end date
 fiscal_year_end = current_page._fiscal_end()
-print fiscal_year_end
 for col in sheet.iter_cols(min_col=8 ,max_col=8,min_row=2):
 	for cell in col:
 		if cell.value <= fiscal_year_end:
@@ -818,6 +849,7 @@ for row in sheet3.iter_rows(max_row = 1):
 for col, value in dimensions.items():
 	sheet3.column_dimensions[col].width = value
 
+#mark high priority cells 
 for col in sheet3.iter_cols(min_col=8, min_row=2):
 	for cell in col:
 		if cell.value == "Already > 90" or cell.value == "This year" or cell.value == "This quarter" or cell.value == "Next month":
@@ -982,134 +1014,135 @@ sheet4.auto_filter.ref 	= "A2:"  + last_cell
 
 #################### VOLUMES SHEET #################### 
 
-#Create sheet
-sheet5 = wb.create_sheet("Volumes")
-volumes_sheet_column_headers = _volumes_sheet_column_headers()
-sheet5.append(volumes_sheet_column_headers)
+if volumes_info_active == True:
+	#Create sheet
+	sheet5 = wb.create_sheet("Volumes")
+	volumes_sheet_column_headers = _volumes_sheet_column_headers()
+	sheet5.append(volumes_sheet_column_headers)
 
-#Alphabetize clusters
-cluster_list = []
-for cluster in volumes_dictionary:
-	cluster_list.append(cluster)
-cluster_list.sort()
+	#Alphabetize clusters
+	cluster_list = []
+	for cluster in volumes_dictionary:
+		cluster_list.append(cluster)
+	cluster_list.sort()
 
-color_flag = 0
-row_flag = 0
+	color_flag = 0
+	row_flag = 0
 
-#Populate worksheet 
-for cluster in cluster_list:
-	cluster_flag = 1
-	cluster_row_count = 0
+	#Populate worksheet 
+	for cluster in cluster_list:
+		cluster_flag = 1
+		cluster_row_count = 0
 
-	#Alphabetize host names
-	host_name_list = []
-	for host_name in volumes_dictionary[cluster]:
-		if host_name != None:
-			host_name_list.append(host_name)
-	host_name_list.sort()
-	
-	
-	#Alphabetize by Host Name
-	for host_name in host_name_list:
-
-		row_info_list = []
-		for row_info in volumes_dictionary[cluster][host_name]:
-			row_info_list.append(row_info)
-		row_info_list.sort(key=lambda x: float(x[3]), reverse=True)
-
-		#Populate spreadsheet
-		all_info = []
-		for row in row_info_list:
-			all_info.append(cluster)
-			all_info.append(host_name)
-			for item in row:
-				all_info.append(item)
-			sheet5.append(all_info)
-			all_info = []
-	 
+		#Alphabetize host names
+		host_name_list = []
+		for host_name in volumes_dictionary[cluster]:
+			if host_name != None:
+				host_name_list.append(host_name)
+		host_name_list.sort()
 		
-		#alternate colors for each cluster (white/blue)
+		
+		#Alphabetize by Host Name
+		for host_name in host_name_list:
+
+			row_info_list = []
+			for row_info in volumes_dictionary[cluster][host_name]:
+				row_info_list.append(row_info)
+			row_info_list.sort(key=lambda x: float(x[3]), reverse=True)
+
+			#Populate spreadsheet
+			all_info = []
+			for row in row_info_list:
+				all_info.append(cluster)
+				all_info.append(host_name)
+				for item in row:
+					all_info.append(item)
+				sheet5.append(all_info)
+				all_info = []
+		 
+			
+			#alternate colors for each cluster (white/blue)
+			for row in sheet5.iter_rows(min_row=2, max_col=6):
+				if row[1].value == host_name:
+					for cell in row:
+						if color_flag == 1:
+							cell.fill = PatternFill(start_color="ffffff", fill_type="solid")
+						if color_flag == 0:
+							cell.fill = PatternFill(start_color="add8e6", fill_type="solid")
+			if color_flag == 0:
+				color_flag = 1
+			elif color_flag == 1:
+				color_flag = 0
+
+		#get number of rows for each cluster
+		for row in sheet5.iter_rows(min_row=2, max_col=1):
+			for cell in row:
+				if cell.value == cluster:
+					cluster_row_count += 1	
+
+		#apply borders as per cluster 
 		for row in sheet5.iter_rows(min_row=2, max_col=6):
-			if row[1].value == host_name:
+			if row[0].value == cluster and cluster_flag < cluster_row_count:	
 				for cell in row:
-					if color_flag == 1:
-						cell.fill = PatternFill(start_color="ffffff", fill_type="solid")
-					if color_flag == 0:
-						cell.fill = PatternFill(start_color="add8e6", fill_type="solid")
-		if color_flag == 0:
-			color_flag = 1
-		elif color_flag == 1:
-			color_flag = 0
+					if row.index(cell)<(len(row)-1):
+						cell.border = Border(
+							left	= Side(style ='thin'),
+							right 	= Side(style ='thin'),
+							top 	= Side(style ='thin'),
+							bottom 	= Side(style ='thin'))
+					else:
+						cell.border = Border(
+							left 	= Side(style='thin'),
+							right 	= Side(style='thick'),
+							top		= Side(style='thin'),
+							bottom 	= Side(style='thin'))
 
-	#get number of rows for each cluster
-	for row in sheet5.iter_rows(min_row=2, max_col=1):
+				cluster_flag += 1
+					
+			elif row[0].value == cluster and cluster_flag == cluster_row_count: 
+				for cell in row:
+					if row.index(cell)<(len(row)-1):
+						cell.border = Border(
+							left 	= Side(style ='thin'),
+							right 	= Side(style ='thin'),
+							top 	= Side(style ='thin'),
+							bottom 	= Side(style ='thick'))
+
+					else:
+						cell.border = Border(	
+							left 	= Side(style='thin'),
+							right 	= Side(style='thick'),
+							top		= Side(style='thin'),
+							bottom	= Side(style='thick'))
+
+	#add thin borders to all cells
+	for row in sheet5.iter_rows(min_row=1, max_row=1, max_col = 6):
 		for cell in row:
-			if cell.value == cluster:
-				cluster_row_count += 1	
+			cell.fill 		= PatternFill(start_color="000080", fill_type="solid")
+			cell.font 		= Font(bold=True, color="ffffff")
+			cell.alignment 	= Alignment('center')
+			cell.border 	= Border(
+				left		= Side(style ='thin'),
+				right 		= Side(style ='thin'),
+				top			= Side(style ='thin'),
+				bottom		= Side(style ='thin'))
 
-	#apply borders as per cluster 
-	for row in sheet5.iter_rows(min_row=2, max_col=6):
-		if row[0].value == cluster and cluster_flag < cluster_row_count:	
-			for cell in row:
-				if row.index(cell)<(len(row)-1):
-					cell.border = Border(
-						left	= Side(style ='thin'),
-						right 	= Side(style ='thin'),
-						top 	= Side(style ='thin'),
-						bottom 	= Side(style ='thin'))
-				else:
-					cell.border = Border(
-						left 	= Side(style='thin'),
-						right 	= Side(style='thick'),
-						top		= Side(style='thin'),
-						bottom 	= Side(style='thin'))
+	#create proper widths for cells
+	for row in sheet5.iter_rows(max_row = 1):
+		for cell in row:
+			if cell.value:
+				dimensions[cell.column] = max((dimensions.get(cell.column, 0), len(str(cell.value))+12))
+	for col, value in dimensions.items():
+		sheet5.column_dimensions[col].width = value
 
-			cluster_flag += 1
-				
-		elif row[0].value == cluster and cluster_flag == cluster_row_count: 
-			for cell in row:
-				if row.index(cell)<(len(row)-1):
-					cell.border = Border(
-						left 	= Side(style ='thin'),
-						right 	= Side(style ='thin'),
-						top 	= Side(style ='thin'),
-						bottom 	= Side(style ='thick'))
+	#freeze top row
+	sheet3.freeze_panes='A2'
 
-				else:
-					cell.border = Border(	
-						left 	= Side(style='thin'),
-						right 	= Side(style='thick'),
-						top		= Side(style='thin'),
-						bottom	= Side(style='thick'))
-
-#add thin borders to all cells
-for row in sheet5.iter_rows(min_row=1, max_row=1, max_col = 6):
-	for cell in row:
-		cell.fill 		= PatternFill(start_color="000080", fill_type="solid")
-		cell.font 		= Font(bold=True, color="ffffff")
-		cell.alignment 	= Alignment('center')
-		cell.border 	= Border(
-			left		= Side(style ='thin'),
-			right 		= Side(style ='thin'),
-			top			= Side(style ='thin'),
-			bottom		= Side(style ='thin'))
-
-#create proper widths for cells
-for row in sheet5.iter_rows(max_row = 1):
-	for cell in row:
-		if cell.value:
-			dimensions[cell.column] = max((dimensions.get(cell.column, 0), len(str(cell.value))+12))
-for col, value in dimensions.items():
-	sheet5.column_dimensions[col].width = value
-
-#freeze top row
-sheet3.freeze_panes='A2'
-
-#add autofilter
-column_letter 			= get_column_letter(len(capacity_trending_sheet_column_headers))
-highest_row 			= sheet3.max_row
-last_cell 				= column_letter + str(highest_row)
-sheet3.auto_filter.ref 	= "A1:"  + last_cell
+	#add autofilter
+	column_letter 			= get_column_letter(len(capacity_trending_sheet_column_headers))
+	highest_row 			= sheet3.max_row
+	last_cell 				= column_letter + str(highest_row)
+	sheet3.auto_filter.ref 	= "A1:"  + last_cell
 
 
 

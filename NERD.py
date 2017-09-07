@@ -150,7 +150,7 @@ class NERD():
 			for name in capacity_dictionary:
 				growth_rate_list = []
 
-				for i in range(0, (len(capacity_dictionary[name])-2)):
+				for i in range(len(capacity_dictionary[name])-1):
 					growth_rate_list.append(((capacity_dictionary[name][i]-capacity_dictionary[name][i+1])/capacity_dictionary[name][i+1])*100)
 				
 				average_growth_rate = np.average(growth_rate_list)
@@ -355,7 +355,7 @@ class NERD():
 				
 				#Calculate growth rate (AAGR)
 				growth_rate_list = []
-				for i in range(0, (n-2)):
+				for i in range(n-1):
 					growth_rate_list.append(((capacity_dictionary[name][i]-capacity_dictionary[name][i+1]) /capacity_dictionary[name][i+1])*100)
 				
 				average_growth_rate = round(np.average(growth_rate_list), 2)
@@ -398,12 +398,10 @@ class NERD():
 			#calculate average growth in TB per month
 			growth_tb = []
 			for name in capacity_dictionary:
-				for i in range(0, (len(capacity_dictionary[name])-2)):
+				for i in range(len(capacity_dictionary[name])-1):
 					growth_tb.append(capacity_dictionary[name][i]-capacity_dictionary[name][i+1])
-
 				average_difference = round((np.average(growth_tb)/(pow(1024, 3))), 2)
 				match_return[name] = average_difference
-				
 			return match_return
 
 	def _host_name(self, asup_url_output):
@@ -593,12 +591,6 @@ class NERD():
 
 	
 
-	
-
-	
-
-#other
+#ASUP APIS
 #http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/biz_key/C%7C93E0D750-5BDF-11E4-9F60-123478563412%7C8499809755%7C721545000241/object_list
-
-#full list
-#http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/biz_key/C%7C93E0D750-5BDF-11E4-9F60-123478563412%7C8499809755%7C721545000241/l
+#http://restprd.corp.netapp.com/asup-rest-interface/ASUP_DATA/client_id/test/biz_key/C%7C93E0D750-5BDF-11E4-9F60-123478563412%7C8499809755%7C721545000241/list

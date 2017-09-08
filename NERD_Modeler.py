@@ -314,6 +314,10 @@ for serial_number in serial_numbers_list:
 		current_page = NERD(asup_volume_iops_url_output)
 
 		volume_iops = current_page._volume_iops(asup_volume_iops_url_output)
+		if volume_iops == None:
+			print "---- WARNING: No volume IOPS info for serial number: " + str(serial_number) + " ----"
+			print "Exiting program. Check ASUP and remove SN# " + str(serial_number) + ". Then run again."
+			sys.exit()
 
 	#Fill dictionaries
 	if location not in location_dictionary:
@@ -381,7 +385,7 @@ document_overview_sheet_column_headers_2.append("Contents")
 document_overview_sheet_column_headers_2.append("Usage")
 
 location_info = []
-location_info.append("Location")
+location_info.append("Locations")
 location_info.append("General location information. Includes cluster names, host names, controller type, OS version, etc.")
 location_info.append("Allows user to filter and examine general storage environment set-up at particular locations.")
 
@@ -400,12 +404,19 @@ performance_info.append("Performance")
 performance_info.append("Overall performance of environment. Includes IOPS, max latency, etc.")
 performance_info.append("View overall health of client storage system to proactively make recommendations on upgrades and improvements.")
 
+volumes_info = []
+volumes_info.append("Volumes")
+volumes_info.append("IOPS for each volume in cluster.")
+volumes_info.append("View performance of specific volumes within client environment.")
+
+
 overview_sheet.append(document_overview_sheet_column_headers_1)
 overview_sheet.append(document_overview_sheet_column_headers_2)
 overview_sheet.append(location_info)
 overview_sheet.append(raid_info)
 overview_sheet.append(capacity_trending_info)
 overview_sheet.append(performance_info)
+overview_sheet.append(volumes_info)
 
 #create proper widths for cells
 for row in overview_sheet.iter_rows(max_row=1):
@@ -440,7 +451,7 @@ for col in overview_sheet.iter_cols(min_row=3, max_col=1):
 for col in overview_sheet.iter_cols(min_col=4, max_col=4):
 	for cell in col:
 		cell.border = Border(left = Side(style = 'thick'))
-for row in overview_sheet.iter_rows(min_row=7, max_row=7, max_col=3):
+for row in overview_sheet.iter_rows(min_row=8, max_row=8, max_col=3):
 	for cell in row:
 		cell.border = Border(top = Side(style = 'thick'))
 
@@ -1149,7 +1160,7 @@ if volumes_info_active == True:
 #################### SAVE EXCEL DOCUMENT #################### 
 
 #Save new excel doc named 'NERD.xlsx'
-wb.save('NERD.xlsx')
+wb.save('NERD_{0}.xlsx'.format(today))
 
 t1 = time.time()
 

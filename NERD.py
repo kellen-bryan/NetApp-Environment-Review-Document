@@ -337,7 +337,7 @@ class NERD():
 
 			aggr_count = len(match_return)
 
-			#fill lists with capacity values from last 24 weeks
+			#fill lists with capacity values from last x weeks
 			for data_group in match:
 				data_group_buffer = []
 				data_group_buffer = re.findall("(\S+)", str(data_group))
@@ -358,11 +358,11 @@ class NERD():
 				for i in range(n-1):
 					growth_rate_list.append(((capacity_dictionary[name][i]-capacity_dictionary[name][i+1]) /capacity_dictionary[name][i+1])*100)
 				
-				average_growth_rate = round(np.average(growth_rate_list), 2)
+				average_growth_rate = round(np.average(growth_rate_list), 2) #growth rate per week
 				if average_growth_rate >= 100:
 					match_return[name] = "Over 100%. Check ASUP for details."
 				else:
-					match_return[name] = average_growth_rate
+					match_return[name] = (average_growth_rate*4) #growth rate per month
 
 			return match_return
 
@@ -400,8 +400,8 @@ class NERD():
 			for name in capacity_dictionary:
 				for i in range(len(capacity_dictionary[name])-1):
 					growth_tb.append(capacity_dictionary[name][i]-capacity_dictionary[name][i+1])
-				average_difference = round((np.average(growth_tb)/(pow(1024, 3))), 2)
-				match_return[name] = average_difference
+				average_difference = round((np.average(growth_tb)/(pow(1024, 3))), 2) #average growth per week
+				match_return[name] = (average_difference * 4) #average growth per month
 			return match_return
 
 	def _host_name(self, asup_url_output):
